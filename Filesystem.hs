@@ -15,12 +15,19 @@ foreign import capi "Basic.h create_dir" c_createDir :: CString -> IO CInt
 foreign import capi "Basic.h delete_file" c_deleteFile :: CString -> IO CInt
 foreign import capi "Basic.h delete_dir" c_deleteDir :: CString -> IO CInt
 foreign import capi "Basic.h list_dir" c_listDir :: CString -> Ptr CInt -> IO (Ptr CString)
+foreign import capi "Basic.h hard_link" c_hardLink :: CString -> CString -> IO CInt
+foreign import capi "Basic.h symbolic_link" c_symLink :: CString -> CString -> IO CInt
+foreign import capi "Basic.h read_symlink" c_readSymlink :: CString -> IO CString
+foreign import capi "Basic.h test_perm" c_testPerm :: CString -> CInt -> IO CInt
+foreign import capi "Basic.h file_type" c_fileType :: CString -> IO CInt
 data File = File {
     path :: String,
     valid :: Bool,
     desc :: Integer
 }
-data AccessMode = Read | Write | ReadWrite | WriteAppend | ReadWriteAppend
+data FilePermission = ReadPerm | WritePerm | ExecutePerm deriving (Eq, Show)
+data AccessMode = Read | Write | ReadWrite | WriteAppend | ReadWriteAppend deriving (Eq, Show)
+data FileType = Directory | CharSpecial | BlockSpecial | Regular | FIFO | Link | Socket | Other deriving (Eq, Show)
 
 fileExists :: String -> IO Bool
 fileExists str = do
@@ -127,3 +134,69 @@ listDir str = do
     mapM_ free res_list
     free res
     pure string_array
+
+executeInDir :: String -> IO b -> IO (Maybe b)
+executeInDir dirpath f = do
+    curPath <- currentDir
+    ok <- setCurrentDir dirpath
+    if not ok then
+        pure Nothing
+    else do
+        res <- f
+        setCurrentDir curPath
+        pure (Just res)
+
+hardLink :: String -> String -> IO Bool
+hardLink old new = do
+    temp_cstr1 <- newCString old
+    temp_cstr2 <- newCString new
+    res <- c_hardLink temp_cstr1 temp_cstr2
+    free temp_cstr1
+    free temp_cstr2
+    pure (res == 0)
+
+symLink :: String -> String -> IO Bool
+symLink old new = do
+    temp_cstr1 <- newCString old
+    temp_cstr2 <- newCString new
+    res <- c_symLink temp_cstr1 temp_cstr2
+    free temp_cstr1
+    free temp_cstr2
+    pure (res == 0)
+
+readSymlink :: String -> IO (Maybe String)
+readSymlink link = do
+    temp_cstr1 <- newCString link
+    res <- c_readSymlink temp_cstr1
+    free temp_cstr1
+    if res == nullPtr then pure Nothing
+    else do
+        str <- peekCString res
+        free res
+        pure (Just str)
+
+getFilePermissions :: String -> IO [FilePermission]
+getFilePermissions name = do
+    temp_cstr1 <- newCString name
+    res_r <- c_testPerm temp_cstr1 4
+    res_w <- c_testPerm temp_cstr1 2
+    res_x <- c_testPerm temp_cstr1 1
+    free temp_cstr1
+    let tmp_array = [(ReadPerm, res_r), (WritePerm, res_w), (ExecutePerm, res_x)]
+    pure [fst x | x <- tmp_array, snd x == 0]
+
+getFileType :: String -> IO (Maybe FileType)
+getFileType name = do
+    temp_cstr1 <- newCString name
+    res <- c_fileType temp_cstr1
+    if res == -1 then pure Nothing else do
+        free temp_cstr1
+        pure (Just (case res of
+            1 -> Directory
+            2 -> CharSpecial
+            3 -> BlockSpecial
+            4 -> Regular
+            5 -> FIFO
+            6 -> Link
+            7 -> Socket
+            _ -> Other))

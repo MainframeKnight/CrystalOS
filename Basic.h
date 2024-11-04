@@ -50,7 +50,7 @@ int file_rename(const char* old_name, const char* new_name) {
 }
 
 char* file_readline(int fd) {
-    char* str = (char *)malloc(2);
+    char* str = (char *)calloc(2, 1);
     char c;
     long i = 0, maxlen = 100;
     while (read(fd, &c, 1) > 0 && c != '\n') {
@@ -58,10 +58,10 @@ char* file_readline(int fd) {
         i++;
         if (i == maxlen - 1) {
             str[i] = '\0';
-            char* str_temp = (char *)malloc(100);
+            char* str_temp = (char *)calloc(100, 1);
             strcpy(str_temp, str);
             free(str);
-            str = (char *)malloc(maxlen*2);
+            str = (char *)calloc(maxlen*2, 1);
             strcpy(str, str_temp);
             free(str_temp);
             maxlen *= 2;
@@ -72,12 +72,12 @@ char* file_readline(int fd) {
 }
 
 char* current_dir() {
-    char* str = (char *)malloc(32);
+    char* str = (char *)calloc(32, 1);
     int size = 32;
     while (getcwd(str, size) == 0 && errno == ERANGE) {
         free(str);
         size *= 2;
-        str = (char *)malloc(size);
+        str = (char *)calloc(size, 1);
     }
     return str;
 }
@@ -116,18 +116,77 @@ char** list_dir(char* dirname, int* size) {
     }
     number_of_files -= 2;
     *size = number_of_files;
-    char** res = (char**)malloc(sizeof(char*) * number_of_files);
+    char** res = (char**)calloc(number_of_files, sizeof(char*));
     closedir(dp);
     dp = opendir(dirname);
     int i = 0;
     while (ep = readdir(dp)) {
         if (strcmp(ep->d_name, ".") && strcmp(ep->d_name, "..")) {
-            res[i] = (char*)malloc(256);
+            res[i] = (char*)calloc(256, 1);
             strcpy(res[i], ep->d_name);
             i++;
         }
     }
     closedir(dp);
     return res;
+}
+
+int hard_link(const char* filename, const char* alias) {
+    return link(filename, alias);
+}
+
+int symbolic_link(const char* filename, const char* alias) {
+    return symlink(filename, alias);
+}
+
+char* read_symlink(const char* filename) {
+    char* str = (char *)calloc(32, 1);
+    int size = 32;
+    while (1) {
+        ssize_t sz = readlink(filename, str, size);
+        if (sz <= 0) {
+            return 0;
+        }
+        if (sz < size) {
+            return str;
+        }
+        free(str);
+        size *= 2;
+        str = (char *)calloc(size, 1);
+    }
+    return str;
+}
+
+int test_perm(const char* filename, int perm) {
+    return access(filename, perm);
+}
+
+int file_type(const char* filename) {
+    struct stat info;
+    if (stat(filename, &info) == -1) {
+        return -1;
+    }
+    if (S_ISDIR(info.st_mode)) {
+        return 1;
+    }
+    if (S_ISCHR(info.st_mode)) {
+        return 2;
+    }
+    if (S_ISBLK(info.st_mode)) {
+        return 3;
+    }
+    if (S_ISREG(info.st_mode)) {
+        return 4;
+    }
+    if (S_ISFIFO(info.st_mode)) {
+        return 5;
+    }
+    if (S_ISLNK(info.st_mode)) {
+        return 6;
+    }
+    if ((info.st_mode & __S_IFMT) == __S_IFSOCK) {
+        return 7;
+    }
+    return 0;
 }
 #endif
