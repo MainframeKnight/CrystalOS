@@ -1,5 +1,5 @@
-#ifndef BASIC_H
-#define BASIC_H
+#ifndef CRYSTAL_FILESYSTEM_H
+#define CRYSTAL_FILESYSTEM_H
 #include<unistd.h>
 #include<sys/stat.h>
 #include<errno.h>
@@ -117,10 +117,9 @@ char** list_dir(char* dirname, int* size) {
     number_of_files -= 2;
     *size = number_of_files;
     char** res = (char**)calloc(number_of_files, sizeof(char*));
-    closedir(dp);
-    dp = opendir(dirname);
+    rewinddir(dp);
     int i = 0;
-    while (ep = readdir(dp)) {
+    while ((ep = readdir(dp)) && i < number_of_files) {
         if (strcmp(ep->d_name, ".") && strcmp(ep->d_name, "..")) {
             res[i] = (char*)calloc(256, 1);
             strcpy(res[i], ep->d_name);

@@ -3,23 +3,23 @@ module CrystalOS.Filesystem where
 import Foreign
 import Foreign.C
 import Foreign.Marshal.Alloc (free)
-foreign import capi "Basic.h file_exists" c_fileExists :: CString -> IO CInt
-foreign import capi "Basic.h file_open" c_fileOpen :: CString -> CInt -> CInt -> CInt -> IO CInt
-foreign import capi "Basic.h file_close" c_fileClose :: CInt -> IO CInt
-foreign import capi "Basic.h file_write" c_fileWrite :: CInt -> CString -> IO CInt
-foreign import capi "Basic.h file_readline" c_fileRead :: CInt -> IO CString
-foreign import capi "Basic.h current_dir" c_currentDir :: IO CString
-foreign import capi "Basic.h set_dir" c_setCurrentDir :: CString -> IO CInt
-foreign import capi "Basic.h file_rename" c_rename :: CString -> CString -> IO CInt
-foreign import capi "Basic.h create_dir" c_createDir :: CString -> IO CInt
-foreign import capi "Basic.h delete_file" c_deleteFile :: CString -> IO CInt
-foreign import capi "Basic.h delete_dir" c_deleteDir :: CString -> IO CInt
-foreign import capi "Basic.h list_dir" c_listDir :: CString -> Ptr CInt -> IO (Ptr CString)
-foreign import capi "Basic.h hard_link" c_hardLink :: CString -> CString -> IO CInt
-foreign import capi "Basic.h symbolic_link" c_symLink :: CString -> CString -> IO CInt
-foreign import capi "Basic.h read_symlink" c_readSymlink :: CString -> IO CString
-foreign import capi "Basic.h test_perm" c_testPerm :: CString -> CInt -> IO CInt
-foreign import capi "Basic.h file_type" c_fileType :: CString -> IO CInt
+foreign import capi "crystal_filesystem.h file_exists" c_fileExists :: CString -> IO CInt
+foreign import capi "crystal_filesystem.h file_open" c_fileOpen :: CString -> CInt -> CInt -> CInt -> IO CInt
+foreign import capi "crystal_filesystem.h file_close" c_fileClose :: CInt -> IO CInt
+foreign import capi "crystal_filesystem.h file_write" c_fileWrite :: CInt -> CString -> IO CInt
+foreign import capi "crystal_filesystem.h file_readline" c_fileRead :: CInt -> IO CString
+foreign import capi "crystal_filesystem.h current_dir" c_currentDir :: IO CString
+foreign import capi "crystal_filesystem.h set_dir" c_setCurrentDir :: CString -> IO CInt
+foreign import capi "crystal_filesystem.h file_rename" c_rename :: CString -> CString -> IO CInt
+foreign import capi "crystal_filesystem.h create_dir" c_createDir :: CString -> IO CInt
+foreign import capi "crystal_filesystem.h delete_file" c_deleteFile :: CString -> IO CInt
+foreign import capi "crystal_filesystem.h delete_dir" c_deleteDir :: CString -> IO CInt
+foreign import capi "crystal_filesystem.h list_dir" c_listDir :: CString -> Ptr CInt -> IO (Ptr CString)
+foreign import capi "crystal_filesystem.h hard_link" c_hardLink :: CString -> CString -> IO CInt
+foreign import capi "crystal_filesystem.h symbolic_link" c_symLink :: CString -> CString -> IO CInt
+foreign import capi "crystal_filesystem.h read_symlink" c_readSymlink :: CString -> IO CString
+foreign import capi "crystal_filesystem.h test_perm" c_testPerm :: CString -> CInt -> IO CInt
+foreign import capi "crystal_filesystem.h file_type" c_fileType :: CString -> IO CInt
 data File = File {
     path :: String,
     valid :: Bool,
