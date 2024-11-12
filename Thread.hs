@@ -1,11 +1,18 @@
 {-# LANGUAGE CApiFFI #-}
-module CrystalOS.Thread where
+module CrystalOS.Thread (
+    ThreadHandle, Mutex, CondVar,
+    createThread, exitThread, joinThread, detachThread, getThreadID,
+    createMutex, lockMutex, unlockMutex, trylockMutex, destroyMutex,
+    createCondvar, signalCondvar, broadcastCondvar, waitCondvar, waitForCond, timedWaitCondvar,
+    destroyCondvar
+) where
 import Foreign
 import Foreign.C
 foreign import capi "crystal_thread.h thread_create" c_createThread :: Ptr CULong -> FunPtr (Ptr () -> IO (Ptr ())) -> IO CInt
 foreign import capi "crystal_thread.h thread_exit" c_exitThread :: IO ()
 foreign import capi "crystal_thread.h thread_join" c_joinThread :: CULong -> IO CInt
 foreign import capi "crystal_thread.h thread_detach" c_detachThread :: CULong -> IO CInt
+foreign import capi "crystal_thread.h gettid" c_getThreadID :: IO CInt
 foreign import capi "crystal_thread.h create_mutex" c_createMutex :: Ptr CInt -> IO (Ptr ())
 foreign import capi "crystal_thread.h lock_mutex" c_lockMutex :: Ptr () -> IO CInt
 foreign import capi "crystal_thread.h trylock_mutex" c_trylockMutex :: Ptr () -> IO CInt
@@ -19,10 +26,10 @@ foreign import capi "crystal_thread.h wait_condvar" c_waitCondvar :: Ptr () -> P
 foreign import capi "crystal_thread.h timedwait_condvar" c_timedwaitCondvar :: Ptr () -> Ptr () -> CLong -> IO CInt
 foreign import ccall "wrapper" mkFunc :: (Ptr () -> IO (Ptr ())) -> IO (FunPtr (Ptr () -> IO (Ptr ())))
 type ThreadHandle = Integer
-type Mutex = Ptr ()
-type CondVar = Ptr ()
+newtype Mutex = Mutex (Ptr ())
+newtype CondVar = CondVar (Ptr ())
 
-createThread :: IO () -> IO (Maybe ThreadHandle)
+createThread :: IO () -> IO (ThreadHandle, Bool)
 -- freeHaskellFunPtr or not? The System.Posix module doesn't.
 createThread act = do
     hdl <- new 0 :: IO (Ptr CULong)
@@ -31,11 +38,11 @@ createThread act = do
     ok <- c_createThread hdl f_temp
     if ok /= 0 then do
         free hdl
-        pure Nothing 
+        pure (0, False)
     else do
         res <- peek hdl
         free hdl
-        pure (Just (toInteger res))
+        pure (toInteger res, True)
 
 exitThread :: IO ()
 exitThread = c_exitThread
@@ -50,66 +57,107 @@ detachThread hdl = do
     res <- c_detachThread (fromInteger hdl)
     pure (res == 0)
 
-createMutex :: IO (Maybe Mutex)
+getThreadID :: IO Integer
+getThreadID = do toInteger <$> c_getThreadID
+
+createMutex :: IO (Mutex, Bool)
 createMutex = do
     temp_ptr <- new 0
     res <- c_createMutex temp_ptr
     ok <- peek temp_ptr
     free temp_ptr
-    if ok == 0 then pure (Just res) else pure Nothing
+    if ok == 0 then pure (Mutex res, True) else pure (Mutex nullPtr, False)
 
 lockMutex :: Mutex -> IO Bool
 lockMutex mutex = do
-    res <- c_lockMutex mutex
-    pure (res == 0)
+    case mutex of
+        Mutex ptr -> do
+            res <- c_lockMutex ptr
+            pure (res == 0)
 
 trylockMutex :: Mutex -> IO (Maybe Bool)
 trylockMutex mutex = do
-    res <- c_trylockMutex mutex
-    case res of
-        0 -> pure (Just True)
-        1 -> pure (Just False)
-        2 -> pure Nothing
+    case mutex of
+        Mutex ptr -> do
+            res <- c_trylockMutex ptr
+            case res of
+                0 -> pure (Just True)
+                1 -> pure (Just False)
+                2 -> pure Nothing
 
 unlockMutex :: Mutex -> IO Bool
 unlockMutex mutex = do
-    res <- c_unlockMutex mutex
-    pure (res == 0)
+    case mutex of
+        Mutex ptr -> do
+            res <- c_unlockMutex ptr
+            pure (res == 0)
 
 destroyMutex :: Mutex -> IO Bool
 destroyMutex mutex = do
-    res <- c_destroyMutex mutex
-    pure (res == 0)
+    case mutex of
+        Mutex ptr -> do
+            res <- c_destroyMutex ptr
+            pure (res == 0)
 
-createCondvar :: IO (Maybe CondVar)
+createCondvar :: IO (CondVar, Bool)
 createCondvar = do
     temp_ptr <- new 0
     res <- c_createCondvar temp_ptr
     ok <- peek temp_ptr
     free temp_ptr
-    if ok == 0 then pure (Just res) else pure Nothing
+    if ok == 0 then pure (CondVar res, True) else pure (CondVar nullPtr, False)
 
 signalCondvar :: CondVar -> IO Bool
 signalCondvar cond = do
-    res <- c_signalCondvar cond
-    pure (res == 0)
+    case cond of
+        CondVar cv -> do
+            res <- c_signalCondvar cv
+            pure (res == 0)
 
 broadcastCondvar :: CondVar -> IO Bool
 broadcastCondvar cond = do
-    res <- c_broadcastCondvar cond
-    pure (res == 0)
+    case cond of
+        CondVar cv -> do
+            res <- c_broadcastCondvar cv
+            pure (res == 0)
 
 waitCondvar :: CondVar -> Mutex -> IO Bool
 waitCondvar condvar mtx = do
-    res <- c_waitCondvar condvar mtx
-    pure (res == 0)
+    case condvar of
+        CondVar cv -> do
+            case mtx of
+                Mutex mt -> do
+                    res <- c_waitCondvar cv mt
+                    pure (res == 0)
 
 timedWaitCondvar :: CondVar -> Mutex -> Integer -> IO Bool
 timedWaitCondvar condvar mtx msec = do
-    res <- c_timedwaitCondvar condvar mtx (fromInteger msec)
-    pure (res == 0)
+    case condvar of
+        CondVar cv -> do
+            case mtx of
+                Mutex mt -> do
+                    res <- c_timedwaitCondvar cv mt (fromInteger msec)
+                    pure (res == 0)
 
 destroyCondvar :: CondVar -> IO Bool
 destroyCondvar condvar = do
-    res <- c_destroyCondvar condvar
-    pure (res == 0)
+    case condvar of
+        CondVar cv -> do
+            res <- c_destroyCondvar cv
+            pure (res == 0)
+
+waitForCond :: CondVar -> Mutex -> IO Bool -> IO ()
+waitForCond condvar mtx pred = do
+    lockMutex mtx
+    waitWhileNotLoop condvar mtx pred
+    unlockMutex mtx
+    pure ()
+
+waitWhileNotLoop :: CondVar -> Mutex -> IO Bool -> IO ()
+waitWhileNotLoop condvar mtx pred = do
+    val <- pred
+    if val then do
+        pure ()
+    else do
+        waitCondvar condvar mtx
+        waitWhileNotLoop condvar mtx pred

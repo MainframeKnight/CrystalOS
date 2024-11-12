@@ -49,8 +49,14 @@ int file_rename(const char* old_name, const char* new_name) {
     return rename(old_name, new_name);
 }
 
+char* file_read(int fd, int* ok, size_t n_bytes) {
+    char* str = (char *)calloc(n_bytes, 1);
+    *ok = read(fd, str, n_bytes);
+    return str;
+}
+
 char* file_readline(int fd) {
-    char* str = (char *)calloc(2, 1);
+    char* str = (char *)calloc(100, 1);
     char c;
     long i = 0, maxlen = 100;
     while (read(fd, &c, 1) > 0 && c != '\n') {
@@ -58,7 +64,7 @@ char* file_readline(int fd) {
         i++;
         if (i == maxlen - 1) {
             str[i] = '\0';
-            char* str_temp = (char *)calloc(100, 1);
+            char* str_temp = (char *)calloc(maxlen, 1);
             strcpy(str_temp, str);
             free(str);
             str = (char *)calloc(maxlen*2, 1);

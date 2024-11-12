@@ -3,7 +3,10 @@
 #include<pthread.h>
 #include<stdlib.h>
 #include<errno.h>
+#include<unistd.h>
+#include<sys/syscall.h>
 #include<sys/time.h>
+#define gettid() syscall(SYS_gettid)
 
 int thread_create(pthread_t* thrd, void*(*func) (void*)) {
     return pthread_create(thrd, 0, func, 0);
@@ -19,6 +22,10 @@ int thread_join(pthread_t thrd) {
 
 int thread_detach(pthread_t thrd) {
     return pthread_detach(thrd);
+}
+
+pid_t get_thread_id() {
+    return gettid();
 }
 
 void *create_mutex(int* ok) {

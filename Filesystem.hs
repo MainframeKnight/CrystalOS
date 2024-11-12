@@ -1,13 +1,19 @@
 {-# LANGUAGE CApiFFI #-}
-module CrystalOS.Filesystem where
+module CrystalOS.Filesystem (
+    File, FilePermission(..), AccessMode(..), FileType(..),
+    fileExists, fileClose, fileOpen, fileWrite, fileReadline,
+    currentDir, setCurrentDir, rename, createDir, deleteFile, deleteDir, listDir,
+    executeInDir, hardLink, symLink, readSymlink, getFilePermissions, getFileType
+) where
 import Foreign
 import Foreign.C
 import Foreign.Marshal.Alloc (free)
 foreign import capi "crystal_filesystem.h file_exists" c_fileExists :: CString -> IO CInt
 foreign import capi "crystal_filesystem.h file_open" c_fileOpen :: CString -> CInt -> CInt -> CInt -> IO CInt
 foreign import capi "crystal_filesystem.h file_close" c_fileClose :: CInt -> IO CInt
+foreign import capi "crystal_filesystem.h file_read" c_fileRead :: CInt -> Ptr CInt -> CULong -> IO CString
 foreign import capi "crystal_filesystem.h file_write" c_fileWrite :: CInt -> CString -> IO CInt
-foreign import capi "crystal_filesystem.h file_readline" c_fileRead :: CInt -> IO CString
+foreign import capi "crystal_filesystem.h file_readline" c_fileReadline :: CInt -> IO CString
 foreign import capi "crystal_filesystem.h current_dir" c_currentDir :: IO CString
 foreign import capi "crystal_filesystem.h set_dir" c_setCurrentDir :: CString -> IO CInt
 foreign import capi "crystal_filesystem.h file_rename" c_rename :: CString -> CString -> IO CInt
@@ -64,10 +70,22 @@ fileWrite f str = do
     else
         pure False
 
+fileRead :: File -> Integer -> IO (Bool, String)
+fileRead f n_bytes = do
+    if valid f then do
+        temp_int <- new 0 :: IO (Ptr CInt)
+        temp_cstr <- c_fileRead (fromInteger (desc f)) temp_int (fromInteger n_bytes)
+        str <- peekCString temp_cstr
+        ok <- peek temp_int
+        free temp_cstr
+        free temp_int
+        pure (ok > 0, str)
+    else pure (False, "")
+
 fileReadline :: File -> IO String
 fileReadline f = do
     if valid f then do
-        temp_cstr <- c_fileRead (fromIntegral (desc f))
+        temp_cstr <- c_fileReadline (fromIntegral (desc f))
         str <- peekCString temp_cstr
         free temp_cstr
         pure str
