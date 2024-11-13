@@ -77,6 +77,38 @@ char* file_readline(int fd) {
     return str;
 }
 
+int change_perm(const char* filename, int user_perm, int group_perm, int others_perm) {
+    mode_t mode = 0;
+    if (!(user_perm % 2)) {
+        mode |= S_IRUSR;
+    }
+    if (!(user_perm % 3)) {
+        mode |= S_IWUSR;
+    }
+    if (!(user_perm % 5)) {
+        mode |= S_IXUSR;
+    }
+    if (!(group_perm % 2)) {
+        mode |= S_IRGRP;
+    }
+    if (!(group_perm % 3)) {
+        mode |= S_IWGRP;
+    }
+    if (!(group_perm % 5)) {
+        mode |= S_IXGRP;
+    }
+    if (!(others_perm % 2)) {
+        mode |= S_IROTH;
+    }
+    if (!(others_perm % 3)) {
+        mode |= S_IWOTH;
+    }
+    if (!(others_perm % 5)) {
+        mode |= S_IXOTH;
+    }
+    return chmod(filename, mode);
+}
+
 char* current_dir() {
     char* str = (char *)calloc(32, 1);
     int size = 32;

@@ -3,8 +3,8 @@ module CrystalOS.Thread (
     ThreadHandle, Mutex, CondVar,
     createThread, exitThread, joinThread, detachThread, getThreadID,
     createMutex, lockMutex, unlockMutex, trylockMutex, destroyMutex,
-    createCondvar, signalCondvar, broadcastCondvar, waitCondvar, waitForCond, timedWaitCondvar,
-    destroyCondvar
+    createCondvar, signalCondvar, broadcastCondvar, waitCondvar, waitForCond, 
+    timedWaitCondvar, destroyCondvar
 ) where
 import Foreign
 import Foreign.C

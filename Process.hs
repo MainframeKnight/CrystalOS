@@ -2,7 +2,8 @@
 module CrystalOS.Process (
     Status(..), getProcessID, getGeneratorID, fork, vFork, exitProcess,
     execute, executeArgs, executePATH, executeArgsPATH,
-    waitGenerated, waitGeneratedPID, generateProcess, listProcessesPID
+    waitGenerated, waitGeneratedPID, generateProcess, listProcessesPID,
+    sendSignal, terminateProcess
 ) where
 import Foreign
 import Foreign.C
@@ -19,6 +20,8 @@ foreign import capi "crystal_process.h execute_file" c_execute :: CString -> IO 
 foreign import capi "crystal_process.h execute_file_PATH" c_executePATH :: CString -> IO CInt
 foreign import capi "crystal_process.h wait_generated" c_waitGenerated :: IO CInt
 foreign import capi "crystal_process.h wait_generated_pid" c_waitGeneratedPID :: CInt -> IO CInt
+foreign import capi "crystal_process.h send_signal" c_sendSignal :: CInt -> CInt -> IO CInt
+foreign import capi "crystal_process.h terminate_process" c_terminateProcess :: CInt -> IO CInt
 data Status = Exited | Stopped | Signaled
 
 getProcessID :: IO Integer
@@ -53,10 +56,10 @@ executePATH filename = do
 executeArgs :: String -> [String] -> IO Integer
 executeArgs filename args = do
     temp_str <- newCString filename
-    c_list <- mapM newCString args
+    c_list0 <- mapM newCString args
+    let c_list = [temp_str] ++ c_list0 ++ [nullPtr]
     temp_args <- newArray c_list
     res <- c_executeArgs temp_str temp_args
-    free temp_str
     mapM_ free c_list
     free temp_args
     pure (toInteger res)
@@ -64,10 +67,10 @@ executeArgs filename args = do
 executeArgsPATH :: String -> [String] -> IO Integer
 executeArgsPATH filename args = do
     temp_str <- newCString filename
-    c_list <- mapM newCString args
+    c_list0 <- mapM newCString args
+    let c_list = [temp_str] ++ c_list0 ++ [nullPtr]
     temp_args <- newArray c_list
     res <- c_executeArgsPATH temp_str temp_args
-    free temp_str
     mapM_ free c_list
     free temp_args
     pure (toInteger res)
@@ -88,12 +91,18 @@ waitGeneratedPID pid = do
         2 -> pure Stopped
         3 -> pure Signaled
 
-generateProcess :: IO () -> IO ()
+sendSignal :: Integer -> Integer -> IO Bool
+sendSignal pid sig = fmap (==0) (c_sendSignal (fromInteger pid) (fromInteger sig))
+
+terminateProcess :: Integer -> IO Bool
+terminateProcess pid = fmap (==0) (c_terminateProcess (fromInteger pid))
+
+generateProcess :: IO () -> IO Integer
 generateProcess act = do
     res <- fork
     if res == 0 then 
-        do act; exitProcess 0
-    else pure ()
+        do act; exitProcess 0; pure 0
+    else pure res
 
 listProcessesPID :: IO [Integer]
 listProcessesPID = do

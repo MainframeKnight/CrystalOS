@@ -1,9 +1,10 @@
 {-# LANGUAGE CApiFFI #-}
 module CrystalOS.Filesystem (
     File, FilePermission(..), AccessMode(..), FileType(..),
-    fileExists, fileClose, fileOpen, fileWrite, fileReadline,
+    fileExists, fileClose, fileOpen, fileWrite, fileRead, fileReadline,
     currentDir, setCurrentDir, rename, createDir, deleteFile, deleteDir, listDir,
-    executeInDir, hardLink, symLink, readSymlink, getFilePermissions, getFileType
+    executeInDir, hardLink, symLink, readSymlink, getFilePermissions, getFileType,
+    fileResize, changeFilePermissions
 ) where
 import Foreign
 import Foreign.C
@@ -14,6 +15,7 @@ foreign import capi "crystal_filesystem.h file_close" c_fileClose :: CInt -> IO 
 foreign import capi "crystal_filesystem.h file_read" c_fileRead :: CInt -> Ptr CInt -> CULong -> IO CString
 foreign import capi "crystal_filesystem.h file_write" c_fileWrite :: CInt -> CString -> IO CInt
 foreign import capi "crystal_filesystem.h file_readline" c_fileReadline :: CInt -> IO CString
+foreign import capi "crystal_filesystem.h truncate" c_fileResize :: CString -> CLong -> IO CInt
 foreign import capi "crystal_filesystem.h current_dir" c_currentDir :: IO CString
 foreign import capi "crystal_filesystem.h set_dir" c_setCurrentDir :: CString -> IO CInt
 foreign import capi "crystal_filesystem.h file_rename" c_rename :: CString -> CString -> IO CInt
@@ -25,6 +27,7 @@ foreign import capi "crystal_filesystem.h hard_link" c_hardLink :: CString -> CS
 foreign import capi "crystal_filesystem.h symbolic_link" c_symLink :: CString -> CString -> IO CInt
 foreign import capi "crystal_filesystem.h read_symlink" c_readSymlink :: CString -> IO CString
 foreign import capi "crystal_filesystem.h test_perm" c_testPerm :: CString -> CInt -> IO CInt
+foreign import capi "crystal_filesystem.h change_perm" c_changePerm :: CString -> CInt -> CInt -> CInt -> IO CInt
 foreign import capi "crystal_filesystem.h file_type" c_fileType :: CString -> IO CInt
 data File = File {
     path :: String,
@@ -90,6 +93,13 @@ fileReadline f = do
         free temp_cstr
         pure str
     else pure ""
+
+fileResize :: String -> Integer -> IO Bool
+fileResize filename newsize = do
+    temp_cstr <- newCString filename
+    res <- c_fileResize temp_cstr (fromInteger newsize)
+    free temp_cstr
+    pure (res == 0)
 
 currentDir :: IO String
 currentDir = do
@@ -202,6 +212,21 @@ getFilePermissions name = do
     free temp_cstr1
     let tmp_array = [(ReadPerm, res_r), (WritePerm, res_w), (ExecutePerm, res_x)]
     pure [fst x | x <- tmp_array, snd x == 0]
+
+computePerm :: [FilePermission] -> Integer
+computePerm perms = 
+    (if ExecutePerm `elem` perms then (*5) else id) (
+    (if WritePerm `elem` perms then (*3) else id) (
+    (if ReadPerm `elem` perms then (*2) else id) 1))
+
+
+changeFilePermissions :: String -> [FilePermission] -> [FilePermission] -> [FilePermission] -> IO Bool
+changeFilePermissions file user_perm group_perm other_perm = do
+    temp_cstr <- newCString file
+    res <- c_changePerm temp_cstr (fromInteger (computePerm user_perm))
+        (fromInteger (computePerm group_perm)) (fromInteger (computePerm other_perm))
+    free temp_cstr
+    pure (res == 0)
 
 getFileType :: String -> IO (Maybe FileType)
 getFileType name = do
