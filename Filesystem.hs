@@ -1,6 +1,6 @@
 {-# LANGUAGE CApiFFI #-}
 module CrystalOS.Filesystem (
-    File, FilePermission(..), AccessMode(..), FileType(..),
+    File, FilePermission(..), AccessMode(..), FileType(..), DirDeleteError(..),
     fileExists, fileClose, fileOpen, fileWrite, fileRead, fileReadline,
     currentDir, setCurrentDir, rename, createDir, deleteFile, deleteDir, listDir,
     executeInDir, hardLink, symLink, readSymlink, getFilePermissions, getFileType,
