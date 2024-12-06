@@ -1,10 +1,11 @@
 {-# LANGUAGE CApiFFI #-}
 module CrystalOS.Thread (
-    ThreadHandle, Mutex, CondVar,
+    ThreadHandle, Mutex, CondVar, Semaphore,
     createThread, exitThread, joinThread, detachThread, getThreadID,
     createMutex, lockMutex, unlockMutex, trylockMutex, destroyMutex,
     createCondvar, signalCondvar, broadcastCondvar, waitCondvar, waitForCond, 
-    timedWaitCondvar, destroyCondvar
+    timedWaitCondvar, destroyCondvar, createSemaphore, incrementSemaphore,
+    getValSemaphore, waitSemaphore, trywaitSemaphore, destroySemaphore
 ) where
 import Foreign
 import Foreign.C
@@ -24,10 +25,17 @@ foreign import capi "crystal_thread.h signal_condvar" c_signalCondvar :: Ptr () 
 foreign import capi "crystal_thread.h broadcast_condvar" c_broadcastCondvar :: Ptr () -> IO CInt
 foreign import capi "crystal_thread.h wait_condvar" c_waitCondvar :: Ptr () -> Ptr () -> IO CInt
 foreign import capi "crystal_thread.h timedwait_condvar" c_timedwaitCondvar :: Ptr () -> Ptr () -> CLong -> IO CInt
+foreign import capi "crystal_thread.h create_semaphore" c_createSemaphore :: CInt -> Ptr CInt -> IO (Ptr ())
+foreign import capi "crystal_thread.h increment_semaphore" c_incrSemaphore :: Ptr () -> IO CInt
+foreign import capi "crystal_thread.h get_semaphore" c_getSemaphore :: Ptr () -> Ptr CInt -> IO CInt
+foreign import capi "crystal_thread.h wait_dec_semaphore" c_waitSemaphore :: Ptr () -> IO CInt
+foreign import capi "crystal_thread.h try_wait_dec_semaphore" c_trywaitSemaphore :: Ptr () -> IO CInt
+foreign import capi "crystal_thread.h destroy_semaphore" c_destroySemaphore :: Ptr () -> IO CInt
 foreign import ccall "wrapper" mkFunc :: (Ptr () -> IO (Ptr ())) -> IO (FunPtr (Ptr () -> IO (Ptr ())))
 type ThreadHandle = Integer
 newtype Mutex = Mutex (Ptr ())
 newtype CondVar = CondVar (Ptr ())
+newtype Semaphore = Semaphore (Ptr ())
 
 createThread :: IO () -> IO (ThreadHandle, Bool)
 -- freeHaskellFunPtr or not? The System.Posix module doesn't.
@@ -161,3 +169,52 @@ waitWhileNotLoop condvar mtx pred = do
     else do
         waitCondvar condvar mtx
         waitWhileNotLoop condvar mtx pred
+
+createSemaphore :: Integer -> IO (Semaphore, Bool)
+createSemaphore val = do
+    temp_ptr <- new 0
+    res <- c_createSemaphore (fromInteger val) temp_ptr
+    ok <- peek temp_ptr
+    free temp_ptr
+    pure (Semaphore res, ok == 0)
+
+incrementSemaphore :: Semaphore -> IO Bool
+incrementSemaphore sema = do
+    case sema of
+        Semaphore sem_ptr -> do
+            ok <- c_incrSemaphore sem_ptr
+            pure (ok == 0)
+
+getValSemaphore :: Semaphore -> IO (Integer, Bool)
+getValSemaphore sema = do
+    case sema of
+        Semaphore sem_ptr -> do
+            temp_ptr <- new 0
+            ok <- c_getSemaphore sem_ptr temp_ptr
+            res <- peek temp_ptr
+            free temp_ptr
+            pure (fromIntegral res, ok == 0)
+
+waitSemaphore :: Semaphore -> IO Bool
+waitSemaphore sema = do
+    case sema of
+        Semaphore sem_ptr -> do
+            ok <- c_waitSemaphore sem_ptr
+            pure (ok == 0)
+
+trywaitSemaphore :: Semaphore -> IO (Maybe Bool)
+trywaitSemaphore sema = do
+    case sema of
+        Semaphore sem_ptr -> do
+            res <- c_trywaitSemaphore sem_ptr
+            case res of
+                0 -> pure (Just True)
+                1 -> pure (Just False)
+                2 -> pure Nothing
+
+destroySemaphore :: Semaphore -> IO Bool
+destroySemaphore sema = do
+    case sema of
+        Semaphore sem_ptr -> do
+            ok <- c_destroySemaphore sem_ptr
+            pure (ok == 0)

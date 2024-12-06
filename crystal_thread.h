@@ -6,6 +6,7 @@
 #include<unistd.h>
 #include<sys/syscall.h>
 #include<sys/time.h>
+#include<semaphore.h>
 #define gettid() syscall(SYS_gettid)
 
 int thread_create(pthread_t* thrd, void*(*func) (void*)) {
@@ -92,6 +93,41 @@ int broadcast_condvar(void *condvar) {
 int destroy_condvar(void* condvar) {
     int ok = pthread_cond_destroy((pthread_cond_t*)condvar);
     free(condvar);
+    return ok;
+}
+
+void *create_semaphore(int val, int* ok) {
+    sem_t* sema = (sem_t*)calloc(1, sizeof(sem_t));
+    *ok = sem_init(sema, 0, val);
+    return (void *)sema;
+}
+
+int increment_semaphore(void *sema) {
+    return sem_post((sem_t *)sema);
+}
+
+int get_semaphore(void *sema, int* res) {
+    return sem_getvalue((sem_t *)sema, res);
+}
+
+int wait_dec_semaphore(void *sema) {
+    return sem_wait((sem_t *)sema);
+}
+
+int try_wait_dec_semaphore(void *sema) {
+    if (sem_trywait((sem_t *)sema) == -1) {
+        if (errno == EAGAIN) {
+            return 1;
+        } else {
+            return 2;
+        }
+    }
+    return 0;
+}
+
+int destroy_semaphore(void *sema) {
+    int ok = sem_destroy((sem_t *)sema);
+    free(sema);
     return ok;
 }
 #endif
