@@ -63,6 +63,13 @@ fileOpen name ac = do
     free temp_cstr
     pure File { path = name, valid = fd /= -1, desc = fd}
 
+fileAction :: String -> AccessMode -> (File -> IO a) -> IO a
+fileAction name ac act = do
+    file <- fileOpen name ac
+    res <- act file
+    fileClose file
+    pure res
+
 fileWrite :: File -> String -> IO Bool
 fileWrite f str = do
     if valid f then do

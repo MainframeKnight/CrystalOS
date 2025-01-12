@@ -23,7 +23,7 @@ int file_open(const char* filename, int access_mode, int append, int create_if_n
         flags |= O_RDONLY;
     }
     else if (access_mode == 2) {
-        flags |= O_WRONLY;
+        flags |= O_WRONLY | O_TRUNC;
     }
     else if (access_mode == 3) {
         flags |= O_RDWR;
